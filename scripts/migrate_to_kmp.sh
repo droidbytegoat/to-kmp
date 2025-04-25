@@ -147,14 +147,34 @@ get_package_name() {
 
 read_template() {
     local template_name=$1
-    local template_path="$(dirname "$0")/templates/$template_name.txt"
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local template_path="$script_dir/templates/$template_name.txt"
     
     if [ ! -f "$template_path" ]; then
         print_error "Error: Template file not found: $template_path"
+        print_error "Current directory: $(pwd)"
+        print_error "Script directory: $script_dir"
+        print_error "Template path: $template_path"
+        print_error "Template files available: $(ls -la $script_dir/templates/ 2>/dev/null || echo 'No templates directory found')"
         exit 1
     fi
     
     cat "$template_path"
+}
+
+copy_templates() {
+    local project_root=$1
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    
+    print_message "Copying templates from $script_dir/templates to $project_root/templates..."
+    
+    if [ ! -d "$script_dir/templates" ]; then
+        print_error "Error: Templates directory not found at $script_dir/templates"
+        exit 1
+    fi
+    
+    mkdir -p "$project_root/templates"
+    cp -R "$script_dir/templates/"* "$project_root/templates/"
 }
 
 create_templates() {
@@ -311,12 +331,6 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")\
 include(":shared")\
 ' "settings.gradle.kts"
         fi
-        
-        if ! grep -q "include(\":androidApp\")" "settings.gradle.kts"; then
-            sed -i '' '/include(/a\
-include(":androidApp")\
-' "settings.gradle.kts"
-        fi
     fi
     
     print_message "Updating build.gradle.kts..."
@@ -402,6 +416,11 @@ include(":androidApp")\
     if [ ! -f "gradle.properties" ]; then
         read_template "gradle_properties" > "gradle.properties"
     fi
+
+    if [ ! -f "shared/build.gradle.kts" ]; then
+        mkdir -p "shared"
+        read_template "shared_build_gradle" | sed "s/\$shared_namespace/$shared_namespace/g" > "shared/build.gradle.kts"
+    fi
 }
 
 setup_kmp_structure() {
@@ -430,7 +449,6 @@ setup_kmp_structure() {
         
         if [ -f "settings.gradle.kts" ]; then
             sed -i '' 's/include(":app")/include(":androidApp")/g' "settings.gradle.kts"
-            sed -i '' 's/project(":app")/project(":androidApp")/g' "settings.gradle.kts"
         fi
     fi
     
