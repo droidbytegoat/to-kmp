@@ -34,23 +34,6 @@ validate_directory_access() {
     return 0
 }
 
-validate_project_type() {
-    local dir=$1
-    if [ -f "$dir/build.gradle" ] || [ -f "$dir/build.gradle.kts" ]; then
-        PROJECT_TYPE="android"
-        return 0
-    elif [ -f "$dir/Podfile" ] || [ -d "$dir/ios" ]; then
-        PROJECT_TYPE="ios"
-        return 0
-    else
-        print_error "Error: Could not identify project type (Android/iOS)."
-        print_error "Please make sure the directory contains either:"
-        print_error "- For Android: build.gradle or build.gradle.kts"
-        print_error "- For iOS: Podfile or ios directory"
-        return 1
-    fi
-}
-
 validate_package_name() {
     local package_name=$1
     if [ -z "$package_name" ]; then
@@ -74,6 +57,7 @@ validate_package_name() {
 get_project_root() {
     local project_root=""
     local current_dir=$(pwd)
+    local project_type=""
     
     while true; do
         printf "Enter the full path of the project root directory: " >&2
@@ -96,25 +80,30 @@ get_project_root() {
             continue
         fi
         
-        if [ -f "build.gradle" ] || [ -f "build.gradle.kts" ]; then
-            PROJECT_TYPE="android"
-        elif [ -f "Podfile" ] || [ -d "ios" ]; then
-            PROJECT_TYPE="ios"
-        else
-            print_error "Error: Could not identify project type (Android/iOS)."
-            print_error "Please make sure the directory contains either:"
-            print_error "- For Android: build.gradle or build.gradle.kts"
-            print_error "- For iOS: Podfile or ios directory"
+        if [ -f "build.gradle" ] || [ -f "build.gradle.kts" ] || [ -f "app/build.gradle" ] || [ -f "app/build.gradle.kts" ]; then
+            project_type="android"
+            print_message "Detected Android project at: $project_root" >&2
             cd "$current_dir"
-            continue
+            local absolute_path=$(cd "$project_root" && pwd)
+            echo "$absolute_path|$project_type"
+            break
+        fi
+
+        if [ -f "Podfile" ] || ls -d *.xcodeproj 2>/dev/null | grep -q . || ls -d *.xcworkspace 2>/dev/null | grep -q . || ls -d *.xcodeproj/project.pbxproj 2>/dev/null | grep -q .; then
+            project_type="ios"
+            print_message "Detected iOS project at: $project_root" >&2
+            cd "$current_dir"
+            local absolute_path=$(cd "$project_root" && pwd)
+            echo "$absolute_path|$project_type"
+            break
         fi
         
+        print_error "Error: Could not identify project type (Android/iOS)."
+        print_error "Please make sure the directory contains either:"
+        print_error "- For Android: build.gradle or build.gradle.kts"
+        print_error "- For iOS: Podfile, .xcodeproj, or .xcworkspace"
         cd "$current_dir"
-        
-        local absolute_path=$(cd "$project_root" && pwd)
-        
-        echo "$absolute_path"
-        break
+        continue
     done
 }
 
@@ -424,6 +413,7 @@ include(":shared")\
 }
 
 setup_kmp_structure() {
+    local shared_namespace=$1
     print_message "Setting up KMP structure..."
     
     cd "$PROJECT_ROOT" || {
@@ -503,20 +493,24 @@ cleanup_templates() {
 main() {
     print_message "Starting KMP setup..."
     
-    PROJECT_ROOT=$(get_project_root)
+    local project_info=$(get_project_root)
+    PROJECT_ROOT=$(echo "$project_info" | cut -d'|' -f1)
+    PROJECT_TYPE=$(echo "$project_info" | cut -d'|' -f2)
     
-    if [ "$PROJECT_TYPE" = "android" ]; then
-        print_message "Success: Android project detected!"
-    else
-        print_message "Success: iOS project detected!"
+    print_message "Project root: $PROJECT_ROOT"
+    print_message "Project type: $PROJECT_TYPE"
+    
+    if [ -z "$PROJECT_ROOT" ] || [ -z "$PROJECT_TYPE" ]; then
+        print_error "Failed to determine project root or type. Aborting."
+        exit 1
     fi
-    print_message "Project root directory: $PROJECT_ROOT"
     
     local package_name=$(get_package_name)
+    local shared_namespace="$package_name.shared"
     
     create_templates "$package_name"
     
-    setup_kmp_structure
+    setup_kmp_structure "$shared_namespace"
     
     cleanup_templates
     
