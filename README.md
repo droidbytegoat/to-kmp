@@ -1,4 +1,4 @@
-# KMP Migration Tool
+# To-KMP
 
 A tool for migrating Android and iOS projects to Kotlin Multiplatform (KMP).
 
