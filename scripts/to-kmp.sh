@@ -9,11 +9,11 @@ print_message() {
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    echo -e "${YELLOW}[WARN]${NC} $1" >&2
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1" >&2
 }
 
 validate_directory() {
@@ -311,10 +311,8 @@ compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "
     print_message "Creating settings.gradle.kts..."
     if [ ! -f "settings.gradle.kts" ]; then
         if [ "$PROJECT_TYPE" = "android" ]; then
-            # Para projetos Android, apenas copiamos o template sem modificar
             read_template "settings_gradle" > "settings.gradle.kts"
         else
-            # Para outros projetos, usamos o nome da pasta como nome do projeto
             local project_name=$(basename "$PROJECT_ROOT")
             read_template "settings_gradle" | sed "s/\$project_name/$project_name/g" > "settings.gradle.kts"
         fi
@@ -521,7 +519,6 @@ EOF
                 print_message "Moving iOS app content to iosApp..."
                 mkdir -p "iosApp"
                 
-                # Mover todos os arquivos e pastas exceto os do Gradle
                 find . -maxdepth 1 -not -name "." \
                     -not -name "iosApp" \
                     -not -name "shared" \
